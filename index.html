@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Crafting Profit Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; }
+    input, select { margin: 5px; padding: 5px; }
+    .ingredient-row { margin-bottom: 10px; }
+    .results { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Crafting Profit Calculator</h1>
+
+  <input type="text" id="search" placeholder="Search for item..." autocomplete="off">
+  <select id="itemSelect" size="10" style="width: 300px; display:block;"></select>
+
+  <div id="ingredients" style="margin-top: 20px;"></div>
+
+  <div style="margin-top: 20px;">
+    <label>Selling Price: <input type="number" id="sellingPrice" min="0" step="0.01"></label>
+  </div>
+
+  <div class="results">
+    <p>Total Craft Cost: $<span id="totalCost">0.00</span></p>
+    <p>Profit: $<span id="profit">0.00</span></p>
+    <p>Profit Margin: <span id="margin">0.00</span>%</p>
+  </div>
+
+  <script>
+    let items = [];
+    let selectedItem = null;
+
+    function loadCSV(url) {
+      fetch(url)
+        .then(res => res.text())
+        .then(text => {
+          const rows = text.trim().split('\n').map(row => row.split(','));
+          const headers = rows[0];
+          for (let i = 1; i < rows.length; i++) {
+            const item = {};
+            rows[i].forEach((val, j) => {
+              item[headers[j]] = val;
+            });
+            items.push(item);
+          }
+        });
+    }
+
+    function searchItems(query) {
+      return items.filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
+    }
+
+    document.getElementById('search').addEventListener('input', function () {
+      const query = this.value;
+      const matches = searchItems(query);
+      const select = document.getElementById('itemSelect');
+      select.innerHTML = '';
+      matches.forEach(item => {
+        const option = document.createElement('option');
+        option.textContent = item.name;
+        option.value = item.name;
+        select.appendChild(option);
+      });
+    });
+
+    document.getElementById('itemSelect').addEventListener('change', function () {
+      const selectedName = this.value;
+      selectedItem = items.find(item => item.name === selectedName);
+      showIngredients(selectedItem);
+    });
+
+    function showIngredients(item) {
+      const container = document.getElementById('ingredients');
+      container.innerHTML = `<h2>${item.name}</h2>`;
+      for (let i = 1; i <= 5; i++) {
+        const name = item[`ingredient${i}_name`];
+        const qty = item[`ingredient${i}_qty`];
+        if (!name) continue;
+        const div = document.createElement('div');
+        div.className = 'ingredient-row';
+        div.innerHTML = `
+          ${name} (x${qty}): $<input type="number" data-qty="${qty}" class="price-input" min="0" step="0.01">
+        `;
+        container.appendChild(div);
+      }
+
+      document.querySelectorAll('.price-input').forEach(input => {
+        input.addEventListener('input', calculateProfit);
+      });
+      document.getElementById('sellingPrice').addEventListener('input', calculateProfit);
+    }
+
+    function calculateProfit() {
+      let totalCost = 0;
+      document.querySelectorAll('.price-input').forEach(input => {
+        const price = parseFloat(input.value) || 0;
+        const qty = parseFloat(input.dataset.qty) || 1;
+        totalCost += price * qty;
+      });
+
+      const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
+      const profit = sellingPrice - totalCost;
+      const margin = sellingPrice > 0 ? ((profit / sellingPrice) * 100).toFixed(2) : "0.00";
+
+      document.getElementById('totalCost').textContent = totalCost.toFixed(2);
+      document.getElementById('profit').textContent = profit.toFixed(2);
+      document.getElementById('margin').textContent = margin;
+    }
+
+    loadCSV('crafted_items.csv');
+  </script>
+</body>
+</html>
