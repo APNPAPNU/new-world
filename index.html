@@ -1,48 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>New World Crafting Calculator</title>
   <style>
     body { font-family: Arial; padding: 20px; max-width: 800px; margin: auto; }
     .ingredient { margin-bottom: 10px; }
     .results { margin-top: 20px; padding: 10px; border-top: 1px solid #ccc; }
-    #search-results { border: 1px solid #ccc; display: none; position: absolute; background: white; z-index: 1000; }
+    #search-results { border: 1px solid #ccc; display: none; position: absolute; background: white; z-index: 1000; max-height: 150px; overflow-y: auto; width: 300px; }
     #search-results div { padding: 5px; cursor: pointer; }
     #search-results div:hover { background-color: #f0f0f0; }
     .hide { display: none; }
+    #full-breakdown-output { margin-top: 20px; border-top: 1px dashed #888; padding-top: 10px; max-height: 300px; overflow-y: auto; }
+    button { margin-top: 10px; padding: 6px 12px; cursor: pointer; }
   </style>
 </head>
 <body>
 
 <h2>New World Crafting Calculator</h2>
 
-<input type="text" id="search" placeholder="Search for an item..." autocomplete="off">
+<input type="text" id="search" placeholder="Search for an item..." autocomplete="off" style="width:300px;">
 <div id="search-results"></div>
 
 <div id="ingredients-section" class="hide">
   <h3>Ingredients</h3>
   <div id="ingredients"></div>
 
-  <label>Projected Sell Price: <input type="number" id="sell-price" min="0" step="0.01"></label>
+  <label>Projected Sell Price: <input type="number" id="sell-price" min="0" step="0.01"></label><br>
+
+  <button id="show-full-breakdown" class="hide">Show Full Breakdown</button>
 
   <div class="results">
     <p><strong>Total Crafting Cost:</strong> <span id="craft-cost">0</span></p>
     <p><strong>Profit:</strong> <span id="profit">0</span></p>
     <p><strong>Break-even Sell Price:</strong> <span id="break-even">0</span></p>
   </div>
+
+  <div id="full-breakdown-output"></div>
 </div>
 
 <script>
   let items = [];
   let selectedItem = null;
 
-  // Load CSV
+  // Load CSV and parse items (replace with your actual CSV filename & location)
   fetch('crafted_items.csv')
     .then(res => res.text())
     .then(text => {
       const rows = text.trim().split('\n');
       const headers = rows.shift().split(',');
+
       rows.forEach(row => {
         const cols = row.split(',');
         const item = { name: cols[0], xp: parseInt(cols[1]), ingredients: [] };
@@ -55,13 +62,16 @@
       });
     });
 
-  // Search logic
+  // Search elements
   const searchInput = document.getElementById('search');
   const resultsDiv = document.getElementById('search-results');
   const ingredientsDiv = document.getElementById('ingredients');
   const ingredientsSection = document.getElementById('ingredients-section');
   const sellInput = document.getElementById('sell-price');
+  const showBreakdownBtn = document.getElementById('show-full-breakdown');
+  const breakdownOutput = document.getElementById('full-breakdown-output');
 
+  // Search logic
   searchInput.addEventListener('input', () => {
     const term = searchInput.value.trim().toLowerCase();
     resultsDiv.innerHTML = '';
@@ -79,6 +89,7 @@
     resultsDiv.style.display = matches.length > 0 ? 'block' : 'none';
   });
 
+  // Hide search results when clicking outside
   document.addEventListener('click', (e) => {
     if (!resultsDiv.contains(e.target) && e.target !== searchInput) {
       resultsDiv.style.display = 'none';
@@ -92,6 +103,9 @@
     ingredientsSection.classList.remove('hide');
     ingredientsDiv.innerHTML = '';
     sellInput.value = '';
+    showBreakdownBtn.classList.remove('hide');
+    breakdownOutput.innerHTML = '';
+
     document.getElementById('craft-cost').textContent = '0';
     document.getElementById('profit').textContent = '0';
     document.getElementById('break-even').textContent = '0';
@@ -101,7 +115,7 @@
       container.className = 'ingredient';
       container.innerHTML = `
         <label>${ing.name} × ${ing.quantity}: 
-          <input type="number" data-index="${index}" class="ingredient-price" min="0" step="0.01">
+          <input type="number" data-index="${index}" class="ingredient-price" min="0" step="0.01" placeholder="Price per unit">
         </label>`;
       ingredientsDiv.appendChild(container);
     });
@@ -114,6 +128,8 @@
   }
 
   function updateTotals() {
+    if (!selectedItem) return;
+
     let totalCost = 0;
     document.querySelectorAll('.ingredient-price').forEach((input, i) => {
       const val = parseFloat(input.value) || 0;
@@ -128,6 +144,41 @@
     document.getElementById('profit').textContent = profit.toFixed(2);
     document.getElementById('break-even').textContent = totalCost.toFixed(2);
   }
+
+  // Recursive ingredient expansion
+  function findItemByName(name) {
+    return items.find(i => i.name === name);
+  }
+
+  // Expand ingredients recursively to base materials with quantities multiplied along the path
+  function expandIngredients(name, multiplier = 1, agg = {}) {
+    const item = findItemByName(name);
+    if (!item || !item.ingredients.length) {
+      // Base material or unknown — add to aggregate
+      agg[name] = (agg[name] || 0) + multiplier;
+      return agg;
+    }
+
+    for (const ing of item.ingredients) {
+      expandIngredients(ing.name, multiplier * ing.quantity, agg);
+    }
+    return agg;
+  }
+
+  // Show full breakdown on button click
+  showBreakdownBtn.addEventListener('click', () => {
+    if (!selectedItem) return;
+
+    const breakdown = expandIngredients(selectedItem.name);
+    breakdownOutput.innerHTML = '<h4>Full Ingredient Breakdown:</h4>';
+
+    for (const [name, qty] of Object.entries(breakdown)) {
+      const p = document.createElement('p');
+      p.textContent = `${name}: ${qty}`;
+      breakdownOutput.appendChild(p);
+    }
+  });
+
 </script>
 
 </body>
