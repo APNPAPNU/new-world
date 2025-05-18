@@ -13,6 +13,10 @@
     .hide { display: none; }
     #show-full-breakdown { margin-top: 10px; }
     #full-breakdown-output { margin-top: 20px; padding-top: 10px; border-top: 1px dashed #888; max-height: 300px; overflow-y: auto; }
+    #breakdown-prices { margin-top: 20px; padding-top: 10px; border-top: 1px dashed #888; }
+    #breakdown-prices .ingredient-price { margin-bottom: 8px; }
+    #calculate-breakdown-cost { margin-top: 10px; }
+    .breakdown-results { margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -36,11 +40,23 @@
 
   <button id="show-full-breakdown" class="hide">Show Full Breakdown</button>
   <div id="full-breakdown-output"></div>
+
+  <div id="breakdown-prices" class="hide">
+    <h4>Enter Base Ingredient Prices</h4>
+    <div id="base-ingredients-list"></div>
+    <button id="calculate-breakdown-cost">Calculate Breakdown Cost</button>
+
+    <div class="breakdown-results">
+      <p><strong>Total Breakdown Cost:</strong> <span id="breakdown-cost">0</span></p>
+      <p><strong>Break-even Sell Price (Breakdown):</strong> <span id="breakdown-break-even">0</span></p>
+    </div>
+  </div>
 </div>
 
 <script>
   let items = [];
   let selectedItem = null;
+  let lastBreakdown = {};
 
   // Load CSV
   fetch('crafted_items.csv')
@@ -68,6 +84,11 @@
   const sellInput = document.getElementById('sell-price');
   const showBreakdownBtn = document.getElementById('show-full-breakdown');
   const breakdownOutput = document.getElementById('full-breakdown-output');
+  const breakdownPricesDiv = document.getElementById('breakdown-prices');
+  const baseIngredientsList = document.getElementById('base-ingredients-list');
+  const calculateBreakdownCostBtn = document.getElementById('calculate-breakdown-cost');
+  const breakdownCostSpan = document.getElementById('breakdown-cost');
+  const breakdownBreakEvenSpan = document.getElementById('breakdown-break-even');
 
   searchInput.addEventListener('input', () => {
     const term = searchInput.value.trim().toLowerCase();
@@ -103,9 +124,12 @@
     document.getElementById('profit').textContent = '0';
     document.getElementById('break-even').textContent = '0';
 
-    // Show the "Show Full Breakdown" button
     showBreakdownBtn.classList.remove('hide');
     breakdownOutput.innerHTML = '';
+    breakdownPricesDiv.classList.add('hide');
+    baseIngredientsList.innerHTML = '';
+    breakdownCostSpan.textContent = '0';
+    breakdownBreakEvenSpan.textContent = '0';
 
     item.ingredients.forEach((ing, index) => {
       const container = document.createElement('div');
@@ -125,6 +149,8 @@
   }
 
   function updateTotals() {
+    if (!selectedItem) return;
+
     let totalCost = 0;
     document.querySelectorAll('.ingredient-price').forEach((input, i) => {
       const val = parseFloat(input.value) || 0;
@@ -163,13 +189,39 @@
   showBreakdownBtn.addEventListener('click', () => {
     if (!selectedItem) return;
 
-    const breakdown = expandIngredients(selectedItem.name);
+    // Compute breakdown and display
+    lastBreakdown = expandIngredients(selectedItem.name);
     breakdownOutput.innerHTML = '<h4>Full Ingredient Breakdown:</h4>';
-    for (const [name, qty] of Object.entries(breakdown)) {
+    for (const [name, qty] of Object.entries(lastBreakdown)) {
       const p = document.createElement('p');
       p.textContent = `${name}: ${qty}`;
       breakdownOutput.appendChild(p);
     }
+
+    // Build price inputs for base ingredients
+    baseIngredientsList.innerHTML = '<h4>Enter Base Ingredient Prices</h4>';
+    for (const [name, qty] of Object.entries(lastBreakdown)) {
+      const div = document.createElement('div');
+      div.className = 'ingredient-price';
+      div.innerHTML = `
+        <label>${name} × ${qty}: 
+          <input type="number" data-base-name="${name}" data-base-qty="${qty}" class="base-price-input" min="0" step="0.01">
+        </label>`;
+      baseIngredientsList.appendChild(div);
+    }
+    breakdownPricesDiv.classList.remove('hide');
+  });
+
+  // Calculate total cost from breakdown prices
+  calculateBreakdownCostBtn.addEventListener('click', () => {
+    let total = 0;
+    document.querySelectorAll('.base-price-input').forEach(input => {
+      const price = parseFloat(input.value) || 0;
+      const qty = parseFloat(input.dataset.baseQty) || 0;
+      total += price * qty;
+    });
+    breakdownCostSpan.textContent = total.toFixed(2);
+    breakdownBreakEvenSpan.textContent = total.toFixed(2);
   });
 </script>
 
