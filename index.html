@@ -1,17 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>New World Crafting Calculator</title>
   <style>
     body { font-family: Arial; padding: 20px; max-width: 800px; margin: auto; }
     .ingredient { margin-bottom: 10px; }
     .results { margin-top: 20px; padding: 10px; border-top: 1px solid #ccc; }
-    #search-results { border: 1px solid #ccc; display: none; position: absolute; background: white; z-index: 1000; max-height: 150px; overflow-y: auto; width: 300px; }
+    #search-results { 
+      border: 1px solid #ccc; 
+      display: none; 
+      position: absolute; 
+      background: white; 
+      z-index: 1000; 
+      max-height: 150px; 
+      overflow-y: auto; 
+      width: 300px;
+    }
     #search-results div { padding: 5px; cursor: pointer; }
     #search-results div:hover { background-color: #f0f0f0; }
     .hide { display: none; }
-    #full-breakdown-output { margin-top: 20px; border-top: 1px dashed #888; padding-top: 10px; max-height: 300px; overflow-y: auto; }
+    #full-breakdown-output { 
+      margin-top: 20px; 
+      padding: 10px; 
+      border-top: 1px dashed #888; 
+      max-height: 300px; 
+      overflow-y: auto; 
+    }
     button { margin-top: 10px; padding: 6px 12px; cursor: pointer; }
   </style>
 </head>
@@ -26,8 +41,11 @@
   <h3>Ingredients</h3>
   <div id="ingredients"></div>
 
-  <label>Projected Sell Price: <input type="number" id="sell-price" min="0" step="0.01"></label><br>
+  <label>Projected Sell Price: 
+    <input type="number" id="sell-price" min="0" step="0.01" placeholder="Enter sell price">
+  </label><br>
 
+  <!-- Breakdown button -->
   <button id="show-full-breakdown" class="hide">Show Full Breakdown</button>
 
   <div class="results">
@@ -36,33 +54,39 @@
     <p><strong>Break-even Sell Price:</strong> <span id="break-even">0</span></p>
   </div>
 
-  <div id="full-breakdown-output"></div>
+  <div id="full-breakdown-output" class="hide"></div>
 </div>
 
 <script>
   let items = [];
   let selectedItem = null;
 
-  // Load CSV and parse items (replace with your actual CSV filename & location)
+  // Load CSV (assumes crafted_items.csv is in same directory)
   fetch('crafted_items.csv')
     .then(res => res.text())
     .then(text => {
       const rows = text.trim().split('\n');
       const headers = rows.shift().split(',');
-
       rows.forEach(row => {
         const cols = row.split(',');
-        const item = { name: cols[0], xp: parseInt(cols[1]), ingredients: [] };
+        const item = { 
+          name: cols[0], 
+          xp: parseInt(cols[1], 10) || 0, 
+          ingredients: [] 
+        };
         for (let i = 2; i < cols.length; i += 2) {
           if (cols[i]) {
-            item.ingredients.push({ name: cols[i], quantity: parseInt(cols[i + 1] || 0) });
+            item.ingredients.push({ 
+              name: cols[i], 
+              quantity: parseInt(cols[i + 1] || '0', 10) 
+            });
           }
         }
         items.push(item);
       });
     });
 
-  // Search elements
+  // DOM references
   const searchInput = document.getElementById('search');
   const resultsDiv = document.getElementById('search-results');
   const ingredientsDiv = document.getElementById('ingredients');
@@ -104,6 +128,7 @@
     ingredientsDiv.innerHTML = '';
     sellInput.value = '';
     showBreakdownBtn.classList.remove('hide');
+    breakdownOutput.classList.add('hide');
     breakdownOutput.innerHTML = '';
 
     document.getElementById('craft-cost').textContent = '0';
@@ -145,23 +170,22 @@
     document.getElementById('break-even').textContent = totalCost.toFixed(2);
   }
 
-  // Recursive ingredient expansion
+  // Helper to find an item by name
   function findItemByName(name) {
     return items.find(i => i.name === name);
   }
 
-  // Expand ingredients recursively to base materials with quantities multiplied along the path
+  // Recursive expansion to base ingredients
   function expandIngredients(name, multiplier = 1, agg = {}) {
     const item = findItemByName(name);
-    if (!item || !item.ingredients.length) {
-      // Base material or unknown — add to aggregate
+    if (!item || item.ingredients.length === 0) {
+      // Base material or unknown
       agg[name] = (agg[name] || 0) + multiplier;
       return agg;
     }
-
-    for (const ing of item.ingredients) {
+    item.ingredients.forEach(ing => {
       expandIngredients(ing.name, multiplier * ing.quantity, agg);
-    }
+    });
     return agg;
   }
 
@@ -170,11 +194,12 @@
     if (!selectedItem) return;
 
     const breakdown = expandIngredients(selectedItem.name);
+    breakdownOutput.classList.remove('hide');
     breakdownOutput.innerHTML = '<h4>Full Ingredient Breakdown:</h4>';
 
-    for (const [name, qty] of Object.entries(breakdown)) {
+    for (const [baseName, qty] of Object.entries(breakdown)) {
       const p = document.createElement('p');
-      p.textContent = `${name}: ${qty}`;
+      p.textContent = `${baseName}: ${qty}`;
       breakdownOutput.appendChild(p);
     }
   });
